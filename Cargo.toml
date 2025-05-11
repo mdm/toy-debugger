@@ -1,0 +1,9 @@
+[package]
+name = "toy-debugger"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = "4.5.38"
+nix = { version = "0.30.1", features = ["process", "ptrace"] }
+thiserror = "2.0.12"
