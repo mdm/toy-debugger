@@ -1,6 +1,7 @@
 use std::ffi::CString;
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
+use std::process::exit;
 
 use nix::sys::ptrace;
 use nix::unistd::{ForkResult, execvp, fork};
@@ -37,6 +38,8 @@ pub enum ProcessError {
     TracemeError,
     #[error("Failed to exec inferior process")]
     ExecError,
+    #[error("Failed to attach to process")]
+    AttachError,
 }
 
 #[derive(Debug)]
@@ -67,19 +70,22 @@ impl Process {
                     Ok(_) => unreachable!(),
                     Err(_) => {
                         eprintln!("Failed to exec process: {}", path.display());
-                        std::process::exit(1);
+                        exit(1);
                     }
                 }
             }
         }
     }
 
-    pub fn attach(pid: Pid) -> Self {
-        Self {
+    pub fn attach(pid: Pid) -> Result<Self, ProcessError> {
+        ptrace::attach(pid.0).map_err(|_| ProcessError::AttachError)?;
+        let process = Self {
             pid,
             terminate_on_end: false,
-            state: ProcessState::Running,
-        }
+            state: ProcessState::Stopped,
+        };
+
+        Ok(process)
     }
 
     pub fn resume(&self) {}
