@@ -1,4 +1,5 @@
 use std::ffi::CString;
+use std::fmt::Display;
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::process::exit;
@@ -24,6 +25,12 @@ impl From<i32> for Pid {
     }
 }
 
+impl Display for Pid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.as_raw())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum ProcessState {
     Stopped,
@@ -33,8 +40,9 @@ pub enum ProcessState {
 }
 
 pub struct StopReason {
-    reason: ProcessState,
-    info: i32,
+    pub reason: ProcessState,
+    pub exit_status: Option<i32>,
+    pub signal: Option<String>,
 }
 
 impl From<WaitStatus> for StopReason {
@@ -42,17 +50,39 @@ impl From<WaitStatus> for StopReason {
         match status {
             WaitStatus::Exited(_pid, exit_status) => StopReason {
                 reason: ProcessState::Exited,
-                info: exit_status,
+                exit_status: Some(exit_status),
+                signal: None,
             },
             WaitStatus::Signaled(_pid, signal, _core_dump) => StopReason {
                 reason: ProcessState::Terminated,
-                info: signal as i32,
+                exit_status: None,
+                signal: Some(signal.to_string()),
             },
             WaitStatus::Stopped(_pid, signal) => StopReason {
                 reason: ProcessState::Stopped,
-                info: signal as i32,
+                exit_status: None,
+                signal: Some(signal.to_string()),
             },
             _ => todo!("Handle other wait statuses"),
+        }
+    }
+}
+
+impl Display for StopReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.reason {
+            ProcessState::Exited => write!(f, "exited with status: {}", self.exit_status.unwrap()),
+            ProcessState::Terminated => {
+                write!(
+                    f,
+                    "terminated with signal: {}",
+                    self.signal.as_ref().unwrap()
+                )
+            }
+            ProcessState::Stopped => {
+                write!(f, "stopped with signal: {}", self.signal.as_ref().unwrap())
+            }
+            ProcessState::Running => Ok(()),
         }
     }
 }
